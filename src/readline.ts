@@ -12,6 +12,7 @@ interface ActiveRead {
 }
 
 type CheckHandler = (text: string) => boolean;
+type DefaultHandler = (input: Input) => void;
 type CtrlCHandler = () => void;
 type PauseHandler = (resume: boolean) => void;
 
@@ -25,12 +26,16 @@ export class Readline implements ITerminalAddon {
   private highWatermark = 10000;
   private lowWatermark = 1000;
   private highWater = false;
+  public cancelPromise: boolean;
   private state: State = new State(
     ">",
     this.tty(),
     this.highlighter,
     this.history
   );
+  private defaultHandler: DefaultHandler = (input: Input) => {
+    return;
+  };
   private checkHandler: CheckHandler = () => true;
   private ctrlCHandler: CtrlCHandler = () => {
     return;
@@ -42,6 +47,7 @@ export class Readline implements ITerminalAddon {
 
   constructor() {
     this.history.restoreFromLocalStorage();
+    this.cancelPromise = false;
   }
 
   /**
@@ -82,6 +88,10 @@ export class Readline implements ITerminalAddon {
    */
   public setHighlighter(highlighter: Highlighter) {
     this.highlighter = highlighter;
+  }
+
+  public setDefaultHandler(defaultHandler: DefaultHandler) {
+    this.defaultHandler = defaultHandler;
   }
 
   /**
@@ -208,11 +218,16 @@ export class Readline implements ITerminalAddon {
    * @returns A promise to be called when the input has been read.
    */
   public read(prompt: string): Promise<string> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {      
       if (this.term === undefined) {
         reject("addon is not active");
         return;
       }
+
+      if (this.cancelPromise) {
+        //reject(new Error("Operation cancelled"));
+      }
+
       this.state = new State(
         prompt,
         this.tty(),
@@ -222,6 +237,11 @@ export class Readline implements ITerminalAddon {
       this.state.refresh();
       this.activeRead = { prompt, resolve, reject };
     });
+  }
+
+  public abortActiveRead() {
+    this.activeRead?.reject(new Error("Operation aborted"));
+    this.activeRead = undefined;
   }
 
   private handleKeyEvent(event: KeyboardEvent): boolean {
@@ -267,16 +287,18 @@ export class Readline implements ITerminalAddon {
   }
 
   private readKey(input: Input) {
+    console.log("reading key", input, this.activeRead);
+
     if (this.activeRead === undefined) {
-      switch (input.inputType) {
-        case InputType.CtrlC:
-          this.ctrlCHandler();
-          break;
-        case InputType.CtrlL:
-          this.write("\x1b[H\x1b[2J");
-          break;
-      }
-      return;
+      // switch (input.inputType) {
+      //   case InputType.CtrlC:
+      //     this.ctrlCHandler();
+      //     break;
+      //   case InputType.CtrlL:
+      //     this.write("\x1b[H\x1b[2J");
+      //     break;
+      // }
+      // return;
     }
 
     switch (input.inputType) {
@@ -298,17 +320,17 @@ export class Readline implements ITerminalAddon {
           this.state.editInsert("\n");
         }
         break;
-      case InputType.CtrlC:
-        this.state.moveCursorToEnd();
-        this.term?.write("^C\r\n");
-        this.state = new State(
-          this.activeRead.prompt,
-          this.tty(),
-          this.highlighter,
-          this.history
-        );
-        this.state.refresh();
-        break;
+      // case InputType.CtrlC:
+      //   this.state.moveCursorToEnd();
+      //   this.term?.write("^C\r\n");        
+      //   this.state = new State(
+      //     this.activeRead.prompt,
+      //     this.tty(),
+      //     this.highlighter,
+      //     this.history
+      //   );
+      //   this.state.refresh();
+      //   break;
       case InputType.CtrlS:
         this.pauseHandler(false);
         break;
@@ -325,18 +347,15 @@ export class Readline implements ITerminalAddon {
         this.state.clearScreen();
         break;
       case InputType.Home:
-      case InputType.CtrlA:
         this.state.moveCursorHome();
         break;
       case InputType.End:
-      case InputType.CtrlE:
         this.state.moveCursorEnd();
         break;
       case InputType.Backspace:
         this.state.editBackspace(1);
         break;
       case InputType.Delete:
-      case InputType.CtrlD:
         this.state.editDelete(1);
         break;
       case InputType.ArrowLeft:
@@ -351,9 +370,14 @@ export class Readline implements ITerminalAddon {
       case InputType.ArrowDown:
         this.state.moveCursorDown(1);
         break;
-      case InputType.UnsupportedControlChar:
-      case InputType.UnsupportedEscape:
-        break;
+
+      default:
+        this.defaultHandler(input);
+      break
+
+      // case InputType.UnsupportedControlChar:
+      // case InputType.UnsupportedEscape:        
+      //   break;
     }
   }
 }
