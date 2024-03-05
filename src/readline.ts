@@ -26,6 +26,7 @@ export class Readline implements ITerminalAddon {
   private highWatermark = 10000;
   private lowWatermark = 1000;
   private highWater = false;
+  private disabled = false;
   public cancelPromise: boolean;
   private state: State = new State(
     ">",
@@ -57,6 +58,14 @@ export class Readline implements ITerminalAddon {
     this.term = term;
     this.term.onData(this.readData.bind(this));
     this.term.attachCustomKeyEventHandler(this.handleKeyEvent.bind(this));
+  }
+
+  public disable() {
+    this.disabled = true;
+  }
+
+  public enable() {
+    this.disabled = false;
   }
 
   /**
@@ -273,6 +282,10 @@ export class Readline implements ITerminalAddon {
   }
 
   private readKey(input: Input) {
+    if (this.disabled) {
+      return;
+    }
+
     switch (input.inputType) {
       case InputType.Text:
         this.state.editInsert(input.data.join(""));
