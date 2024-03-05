@@ -37,9 +37,6 @@ export class Readline implements ITerminalAddon {
     return;
   };
   private checkHandler: CheckHandler = () => true;
-  private ctrlCHandler: CtrlCHandler = () => {
-    return;
-  };
 
   private pauseHandler: PauseHandler = (resume: boolean) => {
     return;
@@ -103,17 +100,6 @@ export class Readline implements ITerminalAddon {
    */
   public setCheckHandler(fn: CheckHandler) {
     this.checkHandler = fn;
-  }
-
-  /**
-   * Set the ctrl-c handler. This function will be called if ctrl-c is encountered
-   * between readline reads. This may be used in circumstances where input from the
-   * user may result in a long running task that can be cancelled.
-   *
-   * @param fn - The ctrl-c handler.
-   */
-  public setCtrlCHandler(fn: CtrlCHandler) {
-    this.ctrlCHandler = fn;
   }
 
   /**
@@ -287,20 +273,6 @@ export class Readline implements ITerminalAddon {
   }
 
   private readKey(input: Input) {
-    console.log("reading key", input, this.activeRead);
-
-    if (this.activeRead === undefined) {
-      // switch (input.inputType) {
-      //   case InputType.CtrlC:
-      //     this.ctrlCHandler();
-      //     break;
-      //   case InputType.CtrlL:
-      //     this.write("\x1b[H\x1b[2J");
-      //     break;
-      // }
-      // return;
-    }
-
     switch (input.inputType) {
       case InputType.Text:
         this.state.editInsert(input.data.join(""));
